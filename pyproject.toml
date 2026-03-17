@@ -2,6 +2,9 @@
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[tool.hatch.build.targets.wheel]
+packages = ["detect_agent"]
+
 [project]
 name = "detect_agent"
 version = "0.1.0"
@@ -9,6 +12,7 @@ description = "Detect if code is running in an AI agent or automated development
 readme = "README.md"
 requires-python = ">=3.9"
 dependencies = []
+packages = ["detect_agent"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "ruff>=0.8.0"]
