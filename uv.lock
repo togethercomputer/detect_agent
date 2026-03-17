@@ -16,7 +16,7 @@ wheels = [
 ]
 
 [[package]]
-name = "detect-agent"
+name = "detect_agent"
 version = "0.1.0"
 source = { editable = "." }
 
