@@ -75,10 +75,10 @@ def determine_agent() -> AgentResult:
                 return {"is_agent": True, "agent": {"name": GITHUB_COPILOT}}
             return {"is_agent": True, "agent": {"name": name}}  # type: ignore[return-value]
 
-    if os.environ.get("CURSOR_TRACE_ID"):
+    if os.environ.get("CURSOR_AGENT"):
         return {"is_agent": True, "agent": {"name": CURSOR}}
 
-    if os.environ.get("CURSOR_AGENT"):
+    if os.environ.get("CURSOR_INVOKED_AS") == "agent":
         return {"is_agent": True, "agent": {"name": CURSOR_CLI}}
 
     if os.environ.get("GEMINI_CLI"):
