@@ -17,6 +17,7 @@ AUGMENT_CLI: Literal["augment-cli"] = "augment-cli"
 OPENCODE: Literal["opencode"] = "opencode"
 GITHUB_COPILOT: Literal["github-copilot"] = "github-copilot"
 GITHUB_COPILOT_CLI: Literal["github-copilot-cli"] = "github-copilot-cli"
+PI: Literal["pi"] = "pi"
 
 KnownAgentNames = Literal[
     "cursor",
@@ -31,6 +32,7 @@ KnownAgentNames = Literal[
     "augment-cli",
     "opencode",
     "github-copilot",
+    "pi",
 ]
 
 
@@ -51,6 +53,7 @@ class AgentResultNone(TypedDict):
 AgentResult = Union[AgentResultAgent, AgentResultNone]
 
 KNOWN_AGENTS = {
+    "PI": PI,
     "CURSOR": CURSOR,
     "CURSOR_CLI": CURSOR_CLI,
     "CLAUDE": CLAUDE,
@@ -75,10 +78,16 @@ def determine_agent() -> AgentResult:
                 return {"is_agent": True, "agent": {"name": GITHUB_COPILOT}}
             return {"is_agent": True, "agent": {"name": name}}  # type: ignore[return-value]
 
+    if os.environ.get("PI_CODING_AGENT"):
+        return {"is_agent": True, "agent": {"name": PI}}
+
     if os.environ.get("CURSOR_AGENT"):
         return {"is_agent": True, "agent": {"name": CURSOR}}
 
-    if os.environ.get("CURSOR_INVOKED_AS") == "agent":
+    if (
+        os.environ.get("CURSOR_INVOKED_AS") == "agent"
+        or os.environ.get("CURSOR_EXTENSION_HOST_ROLE") == "agent-exec"
+    ):
         return {"is_agent": True, "agent": {"name": CURSOR_CLI}}
 
     if os.environ.get("GEMINI_CLI"):
