@@ -40,9 +40,10 @@ jobs:
       contents: write
       pull-requests: write
     env:
-      UPSTREAM_STATE_DIR: ${{ runner.temp }}/upstream-sync-state
-      UPSTREAM_VERCEL_MIRROR: ${{ runner.temp }}/vercel.git
-      UPSTREAM_DIFF_FILE: ${{ runner.temp }}/vercel-detect-agent.diff
+      # runner.* is not allowed in job-level env; use stable paths (fresh VM per hosted job).
+      UPSTREAM_STATE_DIR: /tmp/detect-agent-upstream-state
+      UPSTREAM_VERCEL_MIRROR: /tmp/vercel-detect-agent-bare.git
+      UPSTREAM_DIFF_FILE: /tmp/vercel-packages-detect-agent.diff
     steps:
       - uses: actions/checkout@v4
         with:
@@ -53,13 +54,13 @@ jobs:
       - uses: actions/cache@v4
         id: vercel_mirror_cache
         with:
-          path: ${{ runner.temp }}/vercel.git
+          path: /tmp/vercel-detect-agent-bare.git
           key: vercel-github-bare-mirror-v1-${{ runner.os }}
 
       - uses: actions/cache@v4
         id: upstream_state_cache
         with:
-          path: ${{ runner.temp }}/upstream-sync-state
+          path: /tmp/detect-agent-upstream-state
           key: vercel-detect-agent-upstream-state-v1-${{ runner.os }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'default' }}
 
       - name: Compute upstream drift
