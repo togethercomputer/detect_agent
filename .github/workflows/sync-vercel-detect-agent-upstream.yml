@@ -1,0 +1,144 @@
+# Sync Python port with upstream Vercel `packages/detect-agent` when it changes.
+#
+# Setup:
+# - Repository secret: CURSOR_API_KEY (https://github.com/marketplace/actions/cursor-action)
+# - No GitHub PAT: pushes and `gh pr create` use the job's built-in GITHUB_TOKEN (see permissions below).
+# - Uses actions/cache to remember the last synced upstream commit for that path.
+# - First successful run bootstraps cache only (no agent); the next drift triggers the agent.
+#
+# Test on your PR (same repo only; fork PRs are ignored):
+# 1. Create a repo label named `test-upstream-sync` (Settings -> Labels) if it does not exist.
+# 2. Open your PR, add the `test-upstream-sync` label — this workflow runs once (labeled event).
+# 3. PR runs use a separate Actions cache key so they do not overwrite the mainline upstream SHA.
+# 4. Remove the label when done (optional).
+#
+# Manual run: Actions -> "Sync Vercel detect-agent upstream" -> Run workflow (pick your branch to test workflow_dispatch changes).
+
+name: Sync Vercel detect-agent upstream
+
+on:
+  schedule:
+    # Daily 14:05 UTC — adjust as you like
+    - cron: "5 14 * * *"
+  workflow_dispatch:
+  pull_request:
+    types: [labeled]
+
+concurrency:
+  group: sync-vercel-detect-agent-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event_name == 'pull_request' &&
+       github.event.label.name == 'test-upstream-sync' &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      UPSTREAM_STATE_DIR: ${{ runner.temp }}/upstream-sync-state
+      UPSTREAM_VERCEL_MIRROR: ${{ runner.temp }}/vercel.git
+      UPSTREAM_DIFF_FILE: ${{ runner.temp }}/vercel-detect-agent.diff
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
+      - uses: actions/cache@v4
+        id: vercel_mirror_cache
+        with:
+          path: ${{ runner.temp }}/vercel.git
+          key: vercel-github-bare-mirror-v1-${{ runner.os }}
+
+      - uses: actions/cache@v4
+        id: upstream_state_cache
+        with:
+          path: ${{ runner.temp }}/upstream-sync-state
+          key: vercel-detect-agent-upstream-state-v1-${{ runner.os }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'default' }}
+
+      - name: Compute upstream drift
+        id: drift
+        shell: bash
+        run: ./scripts/vercel_upstream_drift.sh
+
+      - name: Configure git committer (actions bot)
+        if: steps.drift.outputs.should_sync == 'true'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - uses: astral-sh/setup-uv@v5
+        if: steps.drift.outputs.should_sync == 'true'
+        with:
+          enable-cache: true
+          python-version: "3.9"
+
+      - name: Install Python deps (uv)
+        if: steps.drift.outputs.should_sync == 'true'
+        run: uv sync --extra dev
+
+      - name: Run Cursor agent (port + push + PR)
+        id: cursor
+        if: steps.drift.outputs.should_sync == 'true'
+        uses: PunGrumpy/cursor-action@v1.0.0
+        with:
+          api-key: ${{ secrets.CURSOR_API_KEY }}
+          model: composer-2
+          working-directory: .
+          permissions: read-write
+          timeout: "3600"
+          prompt: |
+            You are syncing this repository's Python port of Vercel's `packages/detect-agent` with upstream changes.
+
+            Upstream facts:
+            - merge_base: ${{ steps.drift.outputs.merge_base }}
+            - last_recorded_upstream_tip: ${{ steps.drift.outputs.last_recorded }}
+            - new_upstream_tip: ${{ steps.drift.outputs.new_sha }}
+            - compare URL: ${{ steps.drift.outputs.compare_url }}
+
+            Read the unified diff from this absolute path. Do not `git add` or commit that path; it is CI scratch only:
+            ${{ steps.drift.outputs.diff_path }}
+
+            Your job, in order:
+            1. `git fetch origin && git checkout main && git pull --ff-only origin main`
+            2. Create branch `sync/vercel-detect-agent-${{ steps.drift.outputs.branch_slug }}` (delete/recreate the local branch if it already exists).
+            3. Port upstream logic into `detect_agent/__init__.py` and `tests/` as needed. Mirror detection order and semantics from the TypeScript sources; keep typing style consistent with the existing Python file.
+            4. Update `README.md` / `CHANGELOG.md` here if upstream docs/changelog warrant it.
+            5. Run: `uv sync --extra dev && uv run pytest && uv run ruff check . && uv run ruff format --check .`
+            6. Commit with message like: `sync: port vercel detect-agent ${{ steps.drift.outputs.merge_base }}..${{ steps.drift.outputs.new_sha }}` (shorten SHAs in the subject if you prefer).
+            7. `git push -u origin HEAD`
+            8. Open a PR with `gh pr create` (title/body should link ${{ steps.drift.outputs.compare_url }} and mention https://github.com/vercel/vercel/tree/main/packages/detect-agent ). Use the default Actions token already in the environment (`GITHUB_TOKEN`); do not use a PAT or `gh auth login`.
+
+            If the diff file is empty but the SHAs differ, use the compare URL and current upstream `main` tree for that package to align the port.
+
+      - name: Record synced upstream SHA
+        if: success() && steps.drift.outputs.should_sync == 'true'
+        shell: bash
+        env:
+          NEW_SHA: ${{ steps.drift.outputs.new_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${UPSTREAM_STATE_DIR}"
+          printf '%s\n' "${NEW_SHA}" >"${UPSTREAM_STATE_DIR}/last_packages_detect_agent_commit.txt"
+
+      - name: Job summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Upstream sync"
+            echo "- should_sync: ${{ steps.drift.outputs.should_sync }}"
+            echo "- new_sha: ${{ steps.drift.outputs.new_sha }}"
+            echo "- compare: ${{ steps.drift.outputs.compare_url }}"
+          } >>"${GITHUB_STEP_SUMMARY}"
+          if [[ "${{ steps.drift.outputs.should_sync }}" == "true" ]]; then
+            echo "- cursor exit: ${{ steps.cursor.outputs.exit-code }}" >>"${GITHUB_STEP_SUMMARY}"
+          fi
