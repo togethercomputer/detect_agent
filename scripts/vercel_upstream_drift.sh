@@ -35,9 +35,19 @@ fi
 
 git -C "$UPSTREAM_VERCEL_MIRROR" fetch --prune origin
 
-NEW_SHA="$(git -C "$UPSTREAM_VERCEL_MIRROR" log -1 --format=%H "origin/main" -- "$path")"
+# Mirror clones expose the default branch as refs/heads/main, not origin/main.
+main_ref="main"
+if ! git -C "$UPSTREAM_VERCEL_MIRROR" rev-parse -q --verify "${main_ref}^{commit}" >/dev/null 2>&1; then
+  main_ref="origin/main"
+fi
+if ! git -C "$UPSTREAM_VERCEL_MIRROR" rev-parse -q --verify "${main_ref}^{commit}" >/dev/null 2>&1; then
+  echo "failed to resolve main branch tip (tried main, origin/main) in ${UPSTREAM_VERCEL_MIRROR}" >&2
+  exit 1
+fi
+
+NEW_SHA="$(git -C "$UPSTREAM_VERCEL_MIRROR" log -1 --format=%H "$main_ref" -- "$path")"
 if [[ -z "$NEW_SHA" ]]; then
-  echo "failed to resolve latest commit for $path on origin/main" >&2
+  echo "failed to resolve latest commit for $path on ${main_ref}" >&2
   exit 1
 fi
 
