@@ -2,9 +2,10 @@
 #
 # Setup:
 # - Repository secret: CURSOR_API_KEY (https://github.com/marketplace/actions/cursor-action)
-# - No GitHub PAT: pushes and `gh pr create` use the job's built-in GITHUB_TOKEN (see permissions below).
+# - No GitHub PAT: the final `gh` step uses the built-in GITHUB_TOKEN (see permissions below).
 # - Uses actions/cache to remember the last synced upstream commit for that path.
-# - First successful run bootstraps cache only (no agent); the next drift triggers the agent.
+# - First successful run bootstraps cache only (no agent); the next drift runs the agent + publish steps.
+# - Cursor only edits files and runs checks; this workflow commits, pushes, and opens/updates the PR.
 #
 # Test on your PR (same repo only; fork PRs are ignored):
 # 1. Create a repo label named `test-upstream-sync` (Settings -> Labels) if it does not exist.
@@ -68,6 +69,17 @@ jobs:
         shell: bash
         run: ./scripts/vercel_upstream_drift.sh
 
+      - name: Prepare default branch for sync
+        if: steps.drift.outputs.should_sync == 'true'
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          db="${DEFAULT_BRANCH:-main}"
+          git fetch origin
+          git checkout "$db"
+          git pull --ff-only "origin/$db"
+
       - name: Configure git committer (actions bot)
         if: steps.drift.outputs.should_sync == 'true'
         run: |
@@ -85,7 +97,7 @@ jobs:
         if: steps.drift.outputs.should_sync == 'true'
         run: uv sync --extra dev
 
-      - name: Run Cursor agent (port + push + PR)
+      - name: Run Cursor agent (port + verify)
         id: cursor
         if: steps.drift.outputs.should_sync == 'true'
         uses: PunGrumpy/cursor-action@v1.0.0
@@ -96,7 +108,9 @@ jobs:
           permissions: read-write
           timeout: "3600"
           prompt: |
-            You are syncing this repository's Python port of Vercel's `packages/detect-agent` with upstream changes.
+            You are updating this repository's Python port of Vercel's `packages/detect-agent` to match upstream changes.
+
+            The workflow has already checked out the default branch and pulled latest; stay on the current branch. Do not run any `git` commands and do not use `gh`.
 
             Upstream facts:
             - merge_base: ${{ steps.drift.outputs.merge_base }}
@@ -104,23 +118,68 @@ jobs:
             - new_upstream_tip: ${{ steps.drift.outputs.new_sha }}
             - compare URL: ${{ steps.drift.outputs.compare_url }}
 
-            Read the unified diff from this absolute path. Do not `git add` or commit that path; it is CI scratch only:
+            Read the unified diff from this absolute path. Do not edit that path; it is CI scratch only:
             ${{ steps.drift.outputs.diff_path }}
 
-            Your job, in order:
-            1. `git fetch origin && git checkout main && git pull --ff-only origin main`
-            2. Create branch `sync/vercel-detect-agent-${{ steps.drift.outputs.branch_slug }}` (delete/recreate the local branch if it already exists).
-            3. Port upstream logic into `detect_agent/__init__.py` and `tests/` as needed. Mirror detection order and semantics from the TypeScript sources; keep typing style consistent with the existing Python file.
-            4. Update `README.md` / `CHANGELOG.md` here if upstream docs/changelog warrant it.
-            5. Run: `uv sync --extra dev && uv run pytest && uv run ruff check . && uv run ruff format --check .`
-            6. Commit with message like: `sync: port vercel detect-agent ${{ steps.drift.outputs.merge_base }}..${{ steps.drift.outputs.new_sha }}` (shorten SHAs in the subject if you prefer).
-            7. `git push -u origin HEAD`
-            8. Open a PR with `gh pr create` (title/body should link ${{ steps.drift.outputs.compare_url }} and mention https://github.com/vercel/vercel/tree/main/packages/detect-agent ). Use the default Actions token already in the environment (`GITHUB_TOKEN`); do not use a PAT or `gh auth login`.
+            Your job:
+            1. Port upstream logic into `detect_agent/__init__.py` and `tests/` as needed. Mirror detection order and semantics from the TypeScript sources; keep typing style consistent with the existing Python file.
+            2. Update `README.md` / `CHANGELOG.md` here if upstream docs/changelog warrant it.
+            3. Run: `uv sync --extra dev && uv run pytest && uv run ruff check . && uv run ruff format --check .`
 
             If the diff file is empty but the SHAs differ, use the compare URL and current upstream `main` tree for that package to align the port.
 
+      - name: Commit, push, and open or update PR
+        id: publish
+        if: steps.drift.outputs.should_sync == 'true' && steps.cursor.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          MERGE_BASE: ${{ steps.drift.outputs.merge_base }}
+          NEW_SHA: ${{ steps.drift.outputs.new_sha }}
+          COMPARE_URL: ${{ steps.drift.outputs.compare_url }}
+          BRANCH_SLUG: ${{ steps.drift.outputs.branch_slug }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          db="${DEFAULT_BRANCH:-main}"
+          BRANCH_NAME="sync/vercel-detect-agent-${BRANCH_SLUG}"
+
+          git branch -D "$BRANCH_NAME" 2>/dev/null || true
+          git checkout -b "$BRANCH_NAME"
+
+          git add detect_agent tests README.md CHANGELOG.md pyproject.toml uv.lock 2>/dev/null || true
+
+          if git diff --staged --quiet; then
+            echo "::notice::No staged changes after agent; skipping commit and PR."
+            exit 0
+          fi
+
+          short_mb="${MERGE_BASE:0:7}"
+          short_new="${NEW_SHA:0:7}"
+          git commit -m "sync: port vercel detect-agent ${short_mb}..${short_new}"
+
+          git push -u origin "$BRANCH_NAME" --force
+
+          EXISTING_PR="$(gh pr list --state open --head "$BRANCH_NAME" --json number --jq '.[0].number // empty' 2>/dev/null || true)"
+
+          PR_TITLE="sync: port vercel detect-agent (${short_mb}..${short_new})"
+          PR_BODY="$(printf '%s\n\n%s\n\n%s\n' "Ports [\`packages/detect-agent\`](https://github.com/vercel/vercel/tree/main/packages/detect-agent) from [vercel/vercel](https://github.com/vercel/vercel)." "Compare: ${COMPARE_URL}" "cc @blainekasten")"
+
+          if [ -n "${EXISTING_PR}" ]; then
+            gh pr edit "${EXISTING_PR}" --title "${PR_TITLE}" --body "${PR_BODY}"
+            gh pr edit "${EXISTING_PR}" --add-assignee blainekasten 2>/dev/null || true
+            echo "Updated existing PR #${EXISTING_PR}"
+          else
+            gh pr create \
+              --title "${PR_TITLE}" \
+              --body "${PR_BODY}" \
+              --base "${db}" \
+              --head "${BRANCH_NAME}" \
+              --assignee blainekasten
+          fi
+
       - name: Record synced upstream SHA
-        if: success() && steps.drift.outputs.should_sync == 'true'
+        if: success() && steps.drift.outputs.should_sync == 'true' && steps.cursor.outcome == 'success' && steps.publish.outcome == 'success'
         shell: bash
         env:
           NEW_SHA: ${{ steps.drift.outputs.new_sha }}
@@ -142,4 +201,5 @@ jobs:
           } >>"${GITHUB_STEP_SUMMARY}"
           if [[ "${{ steps.drift.outputs.should_sync }}" == "true" ]]; then
             echo "- cursor exit: ${{ steps.cursor.outputs.exit-code }}" >>"${GITHUB_STEP_SUMMARY}"
+            echo "- publish outcome: ${{ steps.publish.outcome }}" >>"${GITHUB_STEP_SUMMARY}"
           fi
