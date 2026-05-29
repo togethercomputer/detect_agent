@@ -86,6 +86,8 @@ def determine_agent() -> AgentResult:
     if os.environ.get("PI_CODING_AGENT"):
         return {"is_agent": True, "agent": {"name": PI}}
 
+    # Cursor IDE agent-terminal sessions expose CURSOR_TRACE_ID; the
+    # cursor-agent CLI sets CURSOR_AGENT for commands it executes.
     if os.environ.get("CURSOR_TRACE_ID"):
         return {"is_agent": True, "agent": {"name": CURSOR}}
 

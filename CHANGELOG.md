@@ -3,7 +3,7 @@
 ## 0.2.1
 
 - Add support for v0 via `AI_AGENT=v0`
-- Sync Cursor detection with upstream: `CURSOR_TRACE_ID` detects Cursor, and `CURSOR_AGENT` detects cursor-cli
+- Sync Cursor detection with upstream: `CURSOR_TRACE_ID` detects Cursor IDE agent-terminal sessions, and `CURSOR_AGENT` detects cursor-cli commands
 
 ## 0.2.0
 
