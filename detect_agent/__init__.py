@@ -81,7 +81,7 @@ def determine_agent() -> AgentResult:
                 return {"is_agent": True, "agent": {"name": GITHUB_COPILOT}}
             if name == V0:
                 return {"is_agent": True, "agent": {"name": V0}}
-            return {"is_agent": True, "agent": {"name": name}}  # type: ignore[return-value]
+            return {"is_agent": True, "agent": {"name": name}}  # type: ignore[return-value, misc]
 
     if os.environ.get("PI_CODING_AGENT"):
         return {"is_agent": True, "agent": {"name": PI}}
