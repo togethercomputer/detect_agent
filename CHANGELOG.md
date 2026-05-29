@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/togethercomputer/detect_agent/compare/detect_agent-v0.2.1...detect_agent-v0.3.0) (2026-05-29)
+
+
+### Features
+
+* Add v0 detection, improve cursor detection ([#9](https://github.com/togethercomputer/detect_agent/issues/9)) ([97e7e36](https://github.com/togethercomputer/detect_agent/commit/97e7e365e8600200d715259301ab40403a980d04))
+
 ## 0.2.1
 
 - Add support for v0 via `AI_AGENT=v0`
