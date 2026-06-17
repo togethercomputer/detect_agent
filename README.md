@@ -58,6 +58,17 @@ AI_AGENT="your-tool-name" your-command
 - Include version information if needed, separated by an `@` symbol
 - Examples: `claude-code`, `cursor-cli`, `devin@1`, `custom-agent@2.0`
 
+## Development
+
+```bash
+uv sync --extra dev
+uv run pytest
+# Lint and format check (CI)
+uv run ruff check . && uv run ruff format --check .
+# Fix and format
+uv run ruff check . --fix && uv run ruff format .
+```
+
 ## Use Cases
 
 ### Adaptive Behavior
@@ -112,17 +123,6 @@ def should_enable_feature(feature: str) -> bool:
         return True
 
     return False
-```
-
-## Development
-
-```bash
-uv sync --extra dev
-uv run pytest
-# Lint and format check (CI)
-uv run ruff check . && uv run ruff format --check .
-# Fix and format
-uv run ruff check . --fix && uv run ruff format .
 ```
 
 ## Contributing
