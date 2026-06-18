@@ -1,6 +1,6 @@
 # detect_agent
 
-> This is a Python Port of Vercels NPM package
+> This is a Python port of Vercel's `@vercel/detect-agent` npm package.
 
 A lightweight utility for detecting if code is being executed by an AI agent or automated development environment.
 
@@ -18,7 +18,9 @@ from detect_agent import determine_agent
 result = determine_agent()
 
 if result["is_agent"]:
-  print(f"Running in {result["agent"]["name"]} environment");
+    agent = result["agent"]
+    print(f"Running in {agent['name']} environment")
+    # Adapt behavior for AI agent context
 ```
 
 ## Supported Agents
@@ -72,35 +74,69 @@ uv run ruff check . --fix && uv run ruff format .
 ### Adaptive Behavior
 
 ```python
-from detect_agent import determine_agent
 import os
 
-def setup_environment():
-  result = determine_agent()
+from detect_agent import determine_agent
 
-  if (result["is_agent"]) {
-    # Running in AI environment - adjust behavior
-    os.environ.setdefault("TOGETHER_LOG", "debug")
-    print(f"🤖 Detected AI agent: {result["agent"]["name"]}");
+
+def setup_environment():
+    result = determine_agent()
+
+    if result["is_agent"]:
+        agent = result["agent"]
+        # Running in AI environment - adjust behavior
+        os.environ["LOG_LEVEL"] = "verbose"
+        print(f"Detected AI agent: {agent['name']}")
 ```
 
 ### Telemetry and Analytics
 
 ```python
+import time
+
 from detect_agent import determine_agent
 
-def track_usage(event: string):
-  result = determine_agent();
 
-  analytics.track(event, {
-    "agent": result["agent"]["name"] if result["is_agent"] else "human",
-  })
+def track_usage(event: str):
+    result = determine_agent()
+
+    analytics.track(
+        event,
+        {
+            "agent": result["agent"]["name"] if result["is_agent"] else "human",
+            "timestamp": time.time(),
+        },
+    )
 ```
+
+### Feature Toggles
+
+```python
+from detect_agent import determine_agent
+
+
+def should_enable_feature(feature: str) -> bool:
+    result = determine_agent()
+
+    # Enable experimental features for AI agents
+    if result["is_agent"] and feature == "experimental-ai-mode":
+        return True
+
+    return False
+```
+
+## Contributing
+
 ### Adding New Agent Support
 
 To add support for a new AI agent:
 
-1. Add detection logic to `main.py`
-2. Add comprehensive test cases in `test.py`
+1. Add detection logic to `detect_agent/__init__.py`
+2. Add comprehensive test cases in `tests/test_detect_agent.py`
 3. Update this README with the new agent information
 4. Follow the existing priority order pattern
+
+## Links
+
+- [GitHub Repository](https://github.com/togethercomputer/detect_agent)
+- [Vercel upstream package](https://github.com/vercel/vercel/tree/main/packages/detect-agent)
