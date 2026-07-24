@@ -5,6 +5,9 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["detect_agent"]
 
+[tool.hatch.build.targets.wheel.force-include]
+"detect_agent/agents.json" = "detect_agent/agents.json"
+
 [project]
 name = "detect_agent"
 version = "0.3.0"
