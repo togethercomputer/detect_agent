@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.4.0](https://github.com/togethercomputer/detect_agent/compare/detect_agent-v0.3.0...detect_agent-v0.4.0) (2026-07-24)
+
+
+### Features
+
+* port upstream agents.json detection engine ([#14](https://github.com/togethercomputer/detect_agent/issues/14)) ([1e986c5](https://github.com/togethercomputer/detect_agent/commit/1e986c51b9fdb10bc9385c2b30c08e5e8838ab38))
+
+
+### Documentation
+
+* sync README with upstream detect-agent ([#12](https://github.com/togethercomputer/detect_agent/issues/12)) ([852c73f](https://github.com/togethercomputer/detect_agent/commit/852c73f2c41ca6a6e282bee3648dd4b0867f5bcc))
+
 ## [0.3.0](https://github.com/togethercomputer/detect_agent/compare/detect_agent-v0.2.1...detect_agent-v0.3.0) (2026-05-29)
 
 
