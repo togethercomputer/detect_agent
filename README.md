@@ -1,6 +1,6 @@
 # detect_agent
 
-> This is a Python port of Vercel's `@vercel/detect-agent` npm package.
+> This is a Python port of Vercel's [`detect-agent`](https://github.com/vercel/detect-agent) package.
 
 A lightweight utility for detecting if code is being executed by an AI agent or automated development environment.
 
@@ -23,20 +23,34 @@ if result["is_agent"]:
     # Adapt behavior for AI agent context
 ```
 
+## Agent Definitions
+
+Detection rules are vendored from upstream [`agents.json`](https://raw.githubusercontent.com/vercel/detect-agent/main/agents.json) (validated against [`agents.schema.json`](https://raw.githubusercontent.com/vercel/detect-agent/main/agents.schema.json)) and evaluated in array order; the first match wins.
+
 ## Supported Agents
 
 This package can detect the following AI agents and development environments:
 
-- **Custom agents** via `AI_AGENT` environment variable
-- **Cursor** (cursor editor and cursor-cli)
-- **Claude Code** (Anthropic's Claude)
+- **Cursor** (Anysphere)
+- **Claude Code** (Anthropic)
+- **Claude Cowork** (Anthropic)
 - **Devin** (Cognition Labs)
 - **Gemini CLI** (Google)
 - **Codex** (OpenAI)
 - **Antigravity** (Google DeepMind)
-- **GitHub Copilot** (via `AI_AGENT=github-copilot|github-copilot-cli`, `COPILOT_MODEL`, `COPILOT_ALLOW_ALL`, or `COPILOT_GITHUB_TOKEN`)
-- **Replit** (online IDE)
-- **v0** (Vercel's AI assistant, via `AI_AGENT=v0`)
+- **Augment**
+- **Cline**
+- **OpenCode**
+- **OpenClaw**
+- **Goose** (Block)
+- **Junie** (JetBrains)
+- **Kiro** (AWS)
+- **Pi**
+- **GitHub Copilot**
+- **Replit**
+- **Custom agents** (via the `AI_AGENT` environment variable)
+
+See [`agents.json`](https://raw.githubusercontent.com/vercel/detect-agent/main/agents.json) for the exact environment variables and conditions used to detect each one.
 
 ## The AI_AGENT Standard
 
@@ -131,12 +145,11 @@ def should_enable_feature(feature: str) -> bool:
 
 To add support for a new AI agent:
 
-1. Add detection logic to `detect_agent/__init__.py`
-2. Add comprehensive test cases in `tests/test_detect_agent.py`
-3. Update this README with the new agent information
-4. Follow the existing priority order pattern
+1. Sync detection rules from upstream [`agents.json`](https://github.com/vercel/detect-agent/blob/main/agents.json) into `detect_agent/agents.json`. Agents are evaluated in array order — the first match wins.
+2. Sync or extend test cases in `tests/testcases.json`.
+3. Update this README with the new agent information.
 
 ## Links
 
 - [GitHub Repository](https://github.com/togethercomputer/detect_agent)
-- [Vercel upstream package](https://github.com/vercel/vercel/tree/main/packages/detect-agent)
+- [Vercel upstream package](https://github.com/vercel/detect-agent)
