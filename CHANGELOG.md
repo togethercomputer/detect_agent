@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/togethercomputer/detect_agent/compare/detect_agent-v0.5.0...detect_agent-v0.6.0) (2026-08-12)
+
+
+### Features
+
+* agent detection updates for claude, codex, gemini, opencode, kimi code and grok ([#17](https://github.com/togethercomputer/detect_agent/issues/17)) ([d5a501c](https://github.com/togethercomputer/detect_agent/commit/d5a501c98f4aa7295ce579e4089005c45bf4ede3))
+
 ## [0.5.0](https://github.com/togethercomputer/detect_agent/compare/detect_agent-v0.4.0...detect_agent-v0.5.0) (2026-07-24)
 
 
