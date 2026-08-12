@@ -34,6 +34,8 @@ This package can detect the following AI agents and development environments:
 - **Cursor** (Anysphere)
 - **Claude Code** (Anthropic)
 - **Claude Cowork** (Anthropic)
+- **Kimi Code** (Moonshot AI)
+- **Grok Build** (xAI)
 - **Devin** (Cognition Labs)
 - **Gemini CLI** (Google)
 - **Codex** (OpenAI)
