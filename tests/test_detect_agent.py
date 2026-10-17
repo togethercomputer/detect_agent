@@ -4,62 +4,29 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
+import detect_agent
 from detect_agent import KNOWN_AGENTS, determine_agent
 from detect_agent import _evaluate as evaluate_mod
 
 _TESTCASES_PATH = Path(__file__).with_name("testcases.json")
 _TESTCASES: list[dict[str, Any]] = json.loads(_TESTCASES_PATH.read_text(encoding="utf-8"))
 
-# Env vars cleared between tests so cases don't leak into each other.
-_AGENT_ENV_VARS = (
-    "AI_AGENT",
-    "PI_CODING_AGENT",
-    "CURSOR_TRACE_ID",
-    "CURSOR_AGENT",
-    "CURSOR_EXTENSION_HOST_ROLE",
-    "KIMI_PLUGIN_ROOT",
-    "GROK_PLUGIN_ROOT",
-    "GROK_PLUGIN_DATA",
-    "GEMINI_CLI",
-    "CLINE_ACTIVE",
-    "CODEX_SANDBOX",
-    "CODEX_CI",
-    "CODEX_THREAD_ID",
-    "CODEX_SANDBOX_NETWORK_DISABLED",
-    "ANTIGRAVITY_AGENT",
-    "ANTIGRAVITY_CLI_ALIAS",
-    "AUGMENT_AGENT",
-    "OPENCODE_CLIENT",
-    "OPENCODE",
-    "GOOSE_PROVIDER",
-    "JUNIE_DATA",
-    "JUNIE_SHIM_PATH",
-    "CLAUDECODE",
-    "CLAUDE_CODE",
-    "CLAUDE_CODE_IS_COWORK",
-    "REPL_ID",
-    "COPILOT_MODEL",
-    "COPILOT_ALLOW_ALL",
-    "COPILOT_GITHUB_TOKEN",
-    "TERM_PROGRAM",
-    "OPENCLAW_SHELL",
-    "PATH",
-)
-
 
 @pytest.fixture(autouse=True)
-def _clear_agent_env(monkeypatch: pytest.MonkeyPatch):
-    for key in _AGENT_ENV_VARS:
-        monkeypatch.delenv(key, raising=False)
-    # Neutral PATH so Pi's env_matches cannot fire accidentally from the host.
-    monkeypatch.setenv("PATH", "/usr/bin")
+def agent_env(monkeypatch: pytest.MonkeyPatch) -> dict[str, str]:
+    # Never inspect the host environment: every detector reads this synthetic mapping.
+    env = {"PATH": "/usr/bin"}
+    fake_os = SimpleNamespace(environ=env)
+    monkeypatch.setattr(detect_agent, "os", fake_os)
+    monkeypatch.setattr(evaluate_mod, "os", fake_os)
     monkeypatch.setattr(evaluate_mod, "is_tty_fn", lambda: True)
     monkeypatch.setattr(evaluate_mod, "path_exists_fn", lambda _path: False)
-    yield
+    return env
 
 
 def _expected_name(tc: dict[str, Any]) -> str | None:
@@ -72,9 +39,10 @@ def _expected_name(tc: dict[str, Any]) -> str | None:
 
 
 @pytest.mark.parametrize("tc", _TESTCASES, ids=[tc["name"] for tc in _TESTCASES])
-def test_upstream_testcase(tc: dict[str, Any], monkeypatch: pytest.MonkeyPatch):
-    for key, value in tc.get("env", {}).items():
-        monkeypatch.setenv(key, value)
+def test_upstream_testcase(
+    tc: dict[str, Any], monkeypatch: pytest.MonkeyPatch, agent_env: dict[str, str]
+):
+    agent_env.update(tc.get("env", {}))
 
     if tc.get("tty") is not None:
         monkeypatch.setattr(evaluate_mod, "is_tty_fn", lambda: bool(tc["tty"]))
@@ -95,19 +63,24 @@ def test_upstream_testcase(tc: dict[str, Any], monkeypatch: pytest.MonkeyPatch):
 class TestPythonPortExtensions:
     """Behavior kept for Python-port compatibility / extra coverage."""
 
-    def test_pi_coding_agent_set_detects_pi(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setenv("PI_CODING_AGENT", "1")
+    def test_pi_coding_agent_set_detects_pi(self, agent_env: dict[str, str]):
+        agent_env["PI_CODING_AGENT"] = "1"
         result = determine_agent()
         assert result == {"is_agent": True, "agent": {"name": KNOWN_AGENTS["PI"]}}
 
-    def test_ai_agent_github_copilot_cli_is_emitted_verbatim(self, monkeypatch: pytest.MonkeyPatch):
+    def test_pi_coding_agent_keeps_priority_over_new_contexts(self, agent_env: dict[str, str]):
+        agent_env.update({"PI_CODING_AGENT": "1", "CRUSH": "1", "ZED_TERM": "1"})
+        result = determine_agent()
+        assert result == {"is_agent": True, "agent": {"name": KNOWN_AGENTS["PI"]}}
+
+    def test_ai_agent_github_copilot_cli_is_emitted_verbatim(self, agent_env: dict[str, str]):
         # Upstream emits AI_AGENT values verbatim (no alias rewriting).
-        monkeypatch.setenv("AI_AGENT", "github-copilot-cli")
+        agent_env["AI_AGENT"] = "github-copilot-cli"
         result = determine_agent()
         assert result == {"is_agent": True, "agent": {"name": "github-copilot-cli"}}
 
-    def test_ai_agent_v0(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setenv("AI_AGENT", "v0")
+    def test_ai_agent_v0(self, agent_env: dict[str, str]):
+        agent_env["AI_AGENT"] = "v0"
         result = determine_agent()
         assert result == {"is_agent": True, "agent": {"name": "v0"}}
 
@@ -115,23 +88,23 @@ class TestPythonPortExtensions:
 class TestNewUpstreamAgents:
     """Coverage for agents added upstream after the initial JSON testcases."""
 
-    def test_cline_active_detects_cline(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setenv("CLINE_ACTIVE", "1")
+    def test_cline_active_detects_cline(self, agent_env: dict[str, str]):
+        agent_env["CLINE_ACTIVE"] = "1"
         result = determine_agent()
         assert result == {"is_agent": True, "agent": {"name": KNOWN_AGENTS["CLINE"]}}
 
-    def test_openclaw_shell_detects_openclaw(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setenv("OPENCLAW_SHELL", "1")
+    def test_openclaw_shell_detects_openclaw(self, agent_env: dict[str, str]):
+        agent_env["OPENCLAW_SHELL"] = "1"
         result = determine_agent()
         assert result == {"is_agent": True, "agent": {"name": KNOWN_AGENTS["OPENCLAW"]}}
 
-    def test_codex_sandbox_network_disabled_detects_codex(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setenv("CODEX_SANDBOX_NETWORK_DISABLED", "1")
+    def test_codex_sandbox_network_disabled_detects_codex(self, agent_env: dict[str, str]):
+        agent_env["CODEX_SANDBOX_NETWORK_DISABLED"] = "1"
         result = determine_agent()
         assert result == {"is_agent": True, "agent": {"name": KNOWN_AGENTS["CODEX"]}}
 
-    def test_antigravity_cli_alias_detects_antigravity(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setenv("ANTIGRAVITY_CLI_ALIAS", "1")
+    def test_antigravity_cli_alias_detects_antigravity(self, agent_env: dict[str, str]):
+        agent_env["ANTIGRAVITY_CLI_ALIAS"] = "1"
         result = determine_agent()
         assert result == {"is_agent": True, "agent": {"name": KNOWN_AGENTS["ANTIGRAVITY"]}}
 
@@ -139,22 +112,22 @@ class TestNewUpstreamAgents:
 class TestEvaluateCondition:
     """Unit tests for condition leaves/combinators."""
 
-    def test_env_set_true(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setenv("SOME_VAR", "1")
+    def test_env_set_true(self, agent_env: dict[str, str]):
+        agent_env["SOME_VAR"] = "1"
         assert evaluate_mod.evaluate_condition({"type": "env_set", "name": "SOME_VAR"})
 
-    def test_env_set_false_when_empty(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setenv("SOME_VAR", "")
+    def test_env_set_false_when_empty(self, agent_env: dict[str, str]):
+        agent_env["SOME_VAR"] = ""
         assert not evaluate_mod.evaluate_condition({"type": "env_set", "name": "SOME_VAR"})
 
-    def test_env_value_match(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setenv("ROLE", "agent-exec")
+    def test_env_value_match(self, agent_env: dict[str, str]):
+        agent_env["ROLE"] = "agent-exec"
         assert evaluate_mod.evaluate_condition(
             {"type": "env_value", "name": "ROLE", "value": "agent-exec"}
         )
 
-    def test_env_matches_and_malformed_pattern(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setenv("PATH", "/home/me/.pi/agent/bin")
+    def test_env_matches_and_malformed_pattern(self, agent_env: dict[str, str]):
+        agent_env["PATH"] = "/home/me/.pi/agent/bin"
         assert evaluate_mod.evaluate_condition(
             {"type": "env_matches", "name": "PATH", "pattern": r"\.pi[\\/]agent"}
         )
@@ -162,8 +135,8 @@ class TestEvaluateCondition:
             {"type": "env_matches", "name": "PATH", "pattern": "("}
         )
 
-    def test_any_of_and_all_of(self, monkeypatch: pytest.MonkeyPatch):
-        monkeypatch.setenv("A", "1")
+    def test_any_of_and_all_of(self, agent_env: dict[str, str]):
+        agent_env["A"] = "1"
         assert evaluate_mod.evaluate_condition(
             {
                 "type": "anyOf",

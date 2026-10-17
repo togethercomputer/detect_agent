@@ -45,14 +45,82 @@ This package can detect the following AI agents and development environments:
 - **OpenCode**
 - **OpenClaw**
 - **Goose** (Block)
-- **Junie** (JetBrains)
+- **Junie** (JetBrains; non-empty `JUNIE_SHIM_PATH` only; `JUNIE_DATA` is ignored)
 - **Kiro** (AWS)
 - **Pi**
 - **GitHub Copilot**
 - **Replit**
 - **Custom agents** (via the `AI_AGENT` environment variable)
+- **Crush** (Charm)
+- **Hermes Agent** (Nous Research)
+- **Kilo Code**
+- **TRAE**
+- **VT Code**
+- **Zed**
+- **WorkBuddy**
+- **Grok Bot** (separate from Grok Build)
+- **[QwenWork](https://qwenwork.cn)**
+- **Cue**
+- **Muse**
+- **Manus**
+- **Doubao Work**
 
-See [`agents.json`](https://raw.githubusercontent.com/vercel/detect-agent/main/agents.json) for the exact environment variables and conditions used to detect each one.
+See the bundled [`agents.json`](detect_agent/agents.json) for the exact environment variables and conditions used to detect each one.
+
+### Environment context and rule sources
+
+These rules identify environment contexts; a match does not authenticate the process that
+started a command. In particular, `ZED_TERM` identifies a Zed terminal, including a
+human-operated terminal, so it is a fallback after other supported contexts.
+
+Crush (`CRUSH`), Hermes (`HERMES_SESSION_ID`), Kilo Code (`KILOCODE_FEATURE`),
+Trae (`TRAE_AI_SHELL_ID`), VTCode (`VTCODE=1`), and Zed (`ZED_TERM`) markers are
+also registered in the [Hugging Face agent-harness registry at commit
+`e082407`](https://github.com/huggingface/huggingface.js/blob/e08240742cd64d8f908b22e52358b84c812e882c/packages/tasks/src/agent-harnesses.ts).
+The same registry provides `GOOSE_TERMINAL` and `AGENT_CONTEXT_OUT`, which extend
+the existing Goose and Kiro rules without removing their previous conditions.
+Hermes additionally [advertises
+`HERMES_AGENT`](https://github.com/NousResearch/hermes-agent/blob/e5eb6b36fe78eb012cefd1f5f436cd458411b8b3/hermes_cli/main.py#L3268).
+Among these registry-derived additions, VTCode requires the exact value `1`; the other
+markers require a non-empty value.
+
+WorkBuddy uses exact `WORKBUDDY_APPLICATION_NAME=WorkBuddy` or `WORKBUDDY_APP_NAME=WorkBuddy` markers;
+generic packaging or configuration variables are insufficient. Grok Bot uses
+`SAND_AGENT=1`, or a cloud-shell combination of non-empty `CURSOR_AGENT` with
+exact `SAND_MANIFEST_V2=1` and `SAND_SUPERVISOR_ENABLED=1`, ahead of the Cursor
+compatibility rules. Grok Build
+remains a separate result and additionally accepts the exact terminal marker
+`GROK_AGENT=1`. QwenWork checks for a non-empty
+`QODER_WORK_INTEGRATION_PRODUCT`, returning `qwenwork`. The existing `env_set`
+semantics accept any non-empty value and reject missing or empty values. The
+inspected build sets `qwenworkcn`, but the rule does not restrict the value;
+shared use of this variable by other products has not been established. Session
+IDs, region/site flags, execution mode and service endpoints do not independently
+identify the product. See the [marker evidence notes](docs/environment-marker-evidence.md)
+for official product descriptions, inspected versions, artifact hashes, propagation
+paths and the Grok Build source.
+Cue uses the exact `MANUS_LONG_DESKTOP_WORKER=1` marker from a user-provided
+Linux desktop-worker runtime observation. Despite the variable prefix, this rule
+identifies Cue, not Manus. Muse uses exact `JARVIS_IS_ASSIGNED=1` or a non-empty
+`JARVIS_TOOL_CALL_ID` from user-provided active-agent and tool-call observations.
+Other configuration, instance, session, tier or location variables do not
+independently trigger these rules.
+The Manus rule checks a non-empty `MANUS_ADDON_RUNTIME_SPEC_PATH`
+or `MANUS_ADDON_RUNTIME_SPECS_REVISION`. These descriptor names were reported in
+an ordinary shell; their values were not supplied. The Grok Bot cloud-shell
+combination also comes from a user observation. Shared infrastructure markers
+do not establish exclusive product ownership or the immediate caller.
+Doubao Work checks whether `DOUBAO_OFFICE_AGENT_NAME` has a non-empty value,
+using the existing `env_set` semantics. Its value is not compared to a fixed
+agent name; missing and empty values do not match. This variable comes from a
+user-provided runtime observation. Other message, application, proxy, credential
+and deployment fields do not independently identify it.
+
+New agent-specific markers precede inherited Cursor terminal context. The relative
+order and identifiers of existing rules are preserved, as are the `AI_AGENT` override
+and the Python port's `PI_CODING_AGENT` compatibility check.
+Harnesses such as `hi` and `sandbase-harness` can already identify themselves with
+`AI_AGENT`; they do not need dedicated variable rules.
 
 ## The AI_AGENT Standard
 
