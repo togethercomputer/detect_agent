@@ -17,6 +17,9 @@ _TESTCASES: list[dict[str, Any]] = json.loads(_TESTCASES_PATH.read_text(encoding
 # Env vars cleared between tests so cases don't leak into each other.
 _AGENT_ENV_VARS = (
     "AI_AGENT",
+    "INSTINCT_OUTER_TOOL_USE_ID",
+    "INSTINCT_OUTER_TOOL_USE_STARTED_AT",
+    "INSTINCT_OUTER_TOOL_USE_TIMEOUT_SECONDS",
     "PI_CODING_AGENT",
     "CURSOR_TRACE_ID",
     "CURSOR_AGENT",
