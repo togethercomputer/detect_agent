@@ -34,7 +34,10 @@ PI: Literal["pi"] = "pi"
 KIRO: Literal["kiro"] = "kiro"
 OPENCLAW: Literal["openclaw"] = "openclaw"
 
+ROO_CODE: Literal["roo-code"] = "roo-code"
+
 KnownAgentNames = Literal[
+    "roo-code",
     "cursor",
     "cursor-cli",
     "claude_code",
