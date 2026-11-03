@@ -17,6 +17,7 @@ _TESTCASES: list[dict[str, Any]] = json.loads(_TESTCASES_PATH.read_text(encoding
 # Env vars cleared between tests so cases don't leak into each other.
 _AGENT_ENV_VARS = (
     "AI_AGENT",
+    "QWEN_CODE",
     "PI_CODING_AGENT",
     "CURSOR_TRACE_ID",
     "CURSOR_AGENT",
