@@ -34,7 +34,10 @@ PI: Literal["pi"] = "pi"
 KIRO: Literal["kiro"] = "kiro"
 OPENCLAW: Literal["openclaw"] = "openclaw"
 
+DEEPSEEK_HARNESS: Literal["deepseek-harness"] = "deepseek-harness"
+
 KnownAgentNames = Literal[
+    "deepseek-harness",
     "cursor",
     "cursor-cli",
     "claude_code",

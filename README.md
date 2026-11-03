@@ -29,6 +29,8 @@ Detection rules are vendored from upstream [`agents.json`](https://raw.githubuse
 
 ## Supported Agents
 
+- **DeepSeek Harness** (DeepSeek)
+
 This package can detect the following AI agents and development environments:
 
 - **Cursor** (Anysphere)
